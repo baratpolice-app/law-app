@@ -1,0 +1,17 @@
+{
+  "name": "এএসআই পদোন্নতি প্রস্তুতি",
+  "short_name": "এএসআই প্রস্তুতি",
+  "description": "কনস্টেবল/নায়েক টু এএসআই (নিরস্ত্র) বিভাগীয় পদোন্নতি এমসিকিউ পরীক্ষার প্রস্তুতি",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F6F3EC",
+  "theme_color": "#0F2A4A",
+  "lang": "bn",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
