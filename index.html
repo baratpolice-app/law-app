@@ -453,6 +453,12 @@ function setTab(tab){
   render();
   window.scrollTo(0,0);
   maybeAutoSync();
+  if(tab === "home"){
+    window.__homeNavPushed = false;
+  } else if(!window.__homeNavPushed){
+    history.pushState({appNav:true}, "", location.href);
+    window.__homeNavPushed = true;
+  }
 }
 document.addEventListener("visibilitychange", function(){
   if(document.visibilityState === "visible") maybeAutoSync();
@@ -471,7 +477,7 @@ function goBackAction(){
   if(state.tab === "settings"){
     setTab(state.previousTab || "home");
   } else {
-    setTab(state.tab === "home" ? "home" : state.tab);
+    setTab("home");
   }
 }
 window.addEventListener("popstate", function(){
@@ -516,12 +522,6 @@ function renderHome(){
     '<div class="stat-cell"><div class="num">'+(bestMock!==null?bestMock+"%":"—")+'</div><div class="lbl">সেরা মক স্কোর</div></div>'+
   '</div>';
 
-  html += '<div class="sync-banner" id="syncBanner">'+
-    (store.remoteUrl
-      ? 'অনলাইন সিঙ্ক সক্রিয় · '+REMOTE_QUESTIONS.length+'টি অনলাইন প্রশ্ন যুক্ত হয়েছে · <a href="#" id="bannerLink">সেটিংস দেখুন</a>'
-      : 'Google Sheet থেকে নিজের প্রশ্ন যোগ করতে চান? <a href="#" id="bannerLink">অনলাইন সিঙ্ক সেটআপ করুন</a>')+
-  '</div>';
-
   html += '<div class="cta-block">'+
     '<h3>আজই একটি মক টেস্ট দিন</h3>'+
     '<p>সময় বেঁধে দিয়ে সব বিষয় থেকে মিশ্রিত প্রশ্নে বাস্তব পরীক্ষার অভিজ্ঞতা নিন।</p>'+
@@ -553,7 +553,6 @@ function renderHome(){
 
   main.innerHTML = html;
   document.getElementById("homeMockBtn").addEventListener("click", function(){ setTab("mock"); });
-  document.getElementById("bannerLink").addEventListener("click", function(e){ e.preventDefault(); openSettings(); });
   document.querySelectorAll(".subject-card").forEach(function(card){
     card.addEventListener("click", function(){
       startPractice(card.getAttribute("data-subject"));
