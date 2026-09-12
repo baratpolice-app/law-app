@@ -1,1 +1,8 @@
-
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "io.github.baratpolice_app.twa",
+    "sha256_cert_fingerprints": ["06:12:87:B8:2C:B7:2E:AE:10:6C:D3:24:B3:7E:93:01:79:55:AE:FD:10:E4:73:2B:8C:66:C6:F8:96:F0:48:77"]
+  }
+}]
