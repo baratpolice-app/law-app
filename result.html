@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Tiro+Bangla&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
 
-<title>এএসআই পদোন্নতি প্রস্তুতি — হোম</title>
+<title>ফলাফল — এএসআই প্রস্তুতি</title>
 <link rel="stylesheet" href="styles.css">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0B3B2E">
@@ -41,7 +41,7 @@
   <main id="mainArea"></main>
 
   <nav class="tabbar">
-    <a href="index.html" class="active">
+    <a href="index.html">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 11L12 4l9 7"/><path d="M5 10v9h14v-9"/></svg>
       হোম
     </a>
@@ -72,9 +72,20 @@ if('serviceWorker' in navigator){
 }
 </script>
 <script>
-renderHome();
-window.__pageRerender = renderHome;
-maybeAutoSync(renderHome);
+var __raw = sessionStorage.getItem("lastAttempt");
+if(__raw){
+  sessionStorage.removeItem("lastAttempt");
+  var __data = JSON.parse(__raw);
+  renderResultDetail(__data.attempt, __data.timedOut);
+} else {
+  var __params = new URLSearchParams(location.search);
+  var __idx = parseInt(__params.get("idx"),10);
+  if(!isNaN(__idx) && store.attempts[__idx]){
+    renderResultDetail(store.attempts[__idx], false);
+  } else {
+    location.href = "index.html";
+  }
+}
 </script>
 </body>
 </html>

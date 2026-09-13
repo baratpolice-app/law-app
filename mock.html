@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Tiro+Bangla&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
 
-<title>এএসআই পদোন্নতি প্রস্তুতি — হোম</title>
+<title>মক টেস্ট — এএসআই প্রস্তুতি</title>
 <link rel="stylesheet" href="styles.css">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0B3B2E">
@@ -41,7 +41,7 @@
   <main id="mainArea"></main>
 
   <nav class="tabbar">
-    <a href="index.html" class="active">
+    <a href="index.html">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 11L12 4l9 7"/><path d="M5 10v9h14v-9"/></svg>
       হোম
     </a>
@@ -49,7 +49,7 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 9h8M8 13h5"/></svg>
       বিষয়ভিত্তিক
     </a>
-    <a href="mock.html">
+    <a href="mock.html" class="active">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
       মক টেস্ট
     </a>
@@ -72,9 +72,9 @@ if('serviceWorker' in navigator){
 }
 </script>
 <script>
-renderHome();
-window.__pageRerender = renderHome;
-maybeAutoSync(renderHome);
+renderMockSetup();
+window.__pageRerender = renderMockSetup;
+maybeAutoSync(renderMockSetup);
 </script>
 </body>
 </html>

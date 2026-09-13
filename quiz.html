@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Tiro+Bangla&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
 
-<title>এএসআই পদোন্নতি প্রস্তুতি — হোম</title>
+<title>কুইজ — এএসআই প্রস্তুতি</title>
 <link rel="stylesheet" href="styles.css">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0B3B2E">
@@ -30,7 +30,7 @@
         <p class="sub" id="headerSub">বিভাগীয় পদোন্নতি এমসিকিউ পরীক্ষার প্রস্তুতি</p>
       </div>
     </div>
-    <a class="gear-btn" href="settings.html" title="অনলাইন সিঙ্ক সেটিংস">
+    <a class="gear-btn" href="settings.html" title="অনলাইন সিঙ্ক সেটিংস" onclick="return confirmLeaveQuiz()">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D9B65C" stroke-width="1.7">
         <circle cx="12" cy="12" r="3"/>
         <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H9a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V9a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.55 1z"/>
@@ -41,23 +41,23 @@
   <main id="mainArea"></main>
 
   <nav class="tabbar">
-    <a href="index.html" class="active">
+    <a href="index.html" onclick="return confirmLeaveQuiz()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 11L12 4l9 7"/><path d="M5 10v9h14v-9"/></svg>
       হোম
     </a>
-    <a href="practice.html">
+    <a href="practice.html" onclick="return confirmLeaveQuiz()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 9h8M8 13h5"/></svg>
       বিষয়ভিত্তিক
     </a>
-    <a href="mock.html">
+    <a href="mock.html" onclick="return confirmLeaveQuiz()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
       মক টেস্ট
     </a>
-    <a href="history.html">
+    <a href="history.html" onclick="return confirmLeaveQuiz()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19V5a1 1 0 0 1 1-1h11l4 4v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1Z"/><path d="M8 12h8M8 16h5"/></svg>
       ফলাফল
     </a>
-    <a href="profile.html">
+    <a href="profile.html" onclick="return confirmLeaveQuiz()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.6 3.1-6.5 7-6.5s7 2.9 7 6.5"/></svg>
       প্রোফাইল
     </a>
@@ -72,9 +72,9 @@ if('serviceWorker' in navigator){
 }
 </script>
 <script>
-renderHome();
-window.__pageRerender = renderHome;
-maybeAutoSync(renderHome);
+var __cfg = null;
+try{ __cfg = JSON.parse(sessionStorage.getItem("quizConfig")||"null"); }catch(e){}
+if(!__cfg){ location.href = "index.html"; } else { beginQuiz(__cfg); }
 </script>
 </body>
 </html>

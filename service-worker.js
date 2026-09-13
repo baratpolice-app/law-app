@@ -3,10 +3,19 @@
 // with no internet connection. The app's own "সিঙ্ক করুন" button is what
 // pulls fresh questions from your Google Sheet when online.
 
-var CACHE_NAME = "exam-app-shell-v1";
+var CACHE_NAME = "exam-app-shell-v2";
 var APP_SHELL = [
   "./",
   "./index.html",
+  "./practice.html",
+  "./mock.html",
+  "./history.html",
+  "./profile.html",
+  "./settings.html",
+  "./quiz.html",
+  "./result.html",
+  "./app.js",
+  "./styles.css",
   "./manifest.json",
   "./icon-192.png",
   "./icon-512.png",
