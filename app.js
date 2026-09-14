@@ -556,9 +556,16 @@ function finishQuiz(timedOut){
   if(store.attempts.length>50) store.attempts = store.attempts.slice(-50);
   saveStore(store);
   state.quiz = null;
-  if(store.profile.pin) cloudSaveUser();
   sessionStorage.setItem("lastAttempt", JSON.stringify({attempt:attempt, timedOut:timedOut}));
-  location.replace("result.html");
+  if(store.profile.pin){
+    // Wait for the cloud save to actually finish before navigating away —
+    // otherwise leaving the page cancels the in-flight request and the
+    // leaderboard/profile stats on other devices never update.
+    cloudSaveUser().then(function(){ location.replace("result.html"); })
+      .catch(function(){ location.replace("result.html"); });
+  } else {
+    location.replace("result.html");
+  }
 }
 
 /* ===================== RENDER: RESULT DETAIL ===================== */
