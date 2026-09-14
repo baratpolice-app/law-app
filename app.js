@@ -96,7 +96,8 @@ function loadStore(){
   if(!s.wrongIds) s.wrongIds = {};
   if(!s.bookmarks) s.bookmarks = {};
   if(typeof s.darkMode !== "boolean") s.darkMode = false;
-  if(!s.profile) s.profile = {name:"", rank:"", unit:"", photo:""};
+  if(!s.profile) s.profile = {name:"", rank:"", unit:"", photo:"", pin:""};
+  if(s.profile && typeof s.profile.pin === "undefined") s.profile.pin = "";
   if(!s.remoteUrl && DEFAULT_REMOTE_URL) s.remoteUrl = DEFAULT_REMOTE_URL;
   return s;
 }
@@ -115,7 +116,8 @@ var state = {
   tab: "home",
   quiz: null, // active quiz session
   profileEditing: false,
-  tempPhoto: null
+  tempPhoto: null,
+  accountMode: null
 };
 
 function subjectQuestions(sid){
@@ -162,6 +164,55 @@ function overallStats(){
     accuracy: totalQ ? Math.round(100*totalC/totalQ) : null,
     bestMock: bestMock
   };
+}
+
+/* ===================== CLOUD ACCOUNT (PIN-based, via Google Sheet) ===================== */
+function generatePin(){
+  return String(Math.floor(1000 + Math.random()*9000));
+}
+function cloudFetchUser(pin){
+  if(!store.remoteUrl) return Promise.reject(new Error("no remote url"));
+  var url = store.remoteUrl + (store.remoteUrl.indexOf("?")>-1?"&":"?") + "action=getUser&pin=" + encodeURIComponent(pin);
+  return fetch(url).then(function(res){
+    if(!res.ok) throw new Error("HTTP "+res.status);
+    return res.json();
+  });
+}
+function cloudSaveUser(){
+  if(!store.remoteUrl || !store.profile.pin) return Promise.resolve(false);
+  var stats = overallStats();
+  var payload = {
+    action: "saveUser",
+    pin: store.profile.pin,
+    name: store.profile.name, rank: store.profile.rank, unit: store.profile.unit,
+    sessions: stats.sessions, answered: stats.answered,
+    correct: store.attempts.reduce(function(sum,a){return sum+a.correct;},0),
+    bestMock: stats.bestMock || 0,
+    wrongIds: Object.keys(store.wrongIds),
+    bookmarks: Object.keys(store.bookmarks),
+    attempts: store.attempts.slice(-30).map(function(a){
+      return {mode:a.mode, subject:a.subject, special:a.special||null, subjectName:a.subjectName, total:a.total, correct:a.correct, ts:a.ts};
+    })
+  };
+  return fetch(store.remoteUrl, {
+    method: "POST",
+    headers: {"Content-Type": "text/plain;charset=utf-8"},
+    body: JSON.stringify(payload)
+  }).then(function(res){ return res.ok; }).catch(function(){ return false; });
+}
+function applyCloudUser(u){
+  store.profile.name = u.name || store.profile.name;
+  store.profile.rank = u.rank || store.profile.rank;
+  store.profile.unit = u.unit || store.profile.unit;
+  store.profile.pin = u.pin;
+  store.wrongIds = {};
+  (u.wrongIds||[]).forEach(function(k){ store.wrongIds[k] = true; });
+  store.bookmarks = {};
+  (u.bookmarks||[]).forEach(function(k){ store.bookmarks[k] = true; });
+  store.attempts = (u.attempts||[]).map(function(a){
+    return {mode:a.mode, subject:a.subject, special:a.special||null, subjectName:a.subjectName, total:a.total, correct:a.correct, ts:a.ts};
+  });
+  saveStore(store);
 }
 
 var main = document.getElementById("mainArea");
@@ -497,6 +548,7 @@ function finishQuiz(timedOut){
   if(store.attempts.length>50) store.attempts = store.attempts.slice(-50);
   saveStore(store);
   state.quiz = null;
+  if(store.profile.pin) cloudSaveUser();
   sessionStorage.setItem("lastAttempt", JSON.stringify({attempt:attempt, timedOut:timedOut}));
   location.replace("result.html");
 }
@@ -516,7 +568,10 @@ function renderResultDetail(attempt, timedOut){
   html += '<button class="btn block" id="homeFromResultBtn" style="background:#fff;border:1px solid var(--line);color:var(--ink);margin-bottom:22px;">হোমে ফিরুন</button>';
 
   html += '<h2 class="section-title">উত্তরপত্র পর্যালোচনা</h2>';
-  attempt.questions.forEach(function(item, i){
+  if(!attempt.questions){
+    html += '<div class="empty-state"><p>এই অ্যাটেম্পটের বিস্তারিত প্রশ্ন-উত্তর সংরক্ষিত নেই (অন্য ডিভাইস থেকে সিঙ্ক করা ফলাফল)।<br>শুধু স্কোরটাই দেখা যাচ্ছে।</p></div>';
+  } else {
+    attempt.questions.forEach(function(item, i){
     var wasRight = item.chosen===item.a;
     html += '<div class="review-item">'+
       '<div class="rq">'+(i+1)+'. '+item.q+'</div>';
@@ -528,7 +583,8 @@ function renderResultDetail(attempt, timedOut){
     html += '<div class="ra right">সঠিক উত্তর: '+["ক","খ","গ","ঘ"][item.a]+'. '+item.o[item.a]+'</div>';
     html += '<div style="font-size:12.5px;color:var(--ink-soft);margin-top:6px;line-height:1.6;">'+item.e+'</div>';
     html += '</div>';
-  });
+    });
+  }
 
   main.innerHTML = html;
   document.getElementById("retryBtn").addEventListener("click", function(){
@@ -628,6 +684,8 @@ function renderSettings(){
     '<label class="field-label" style="margin-top:14px;">Apps Script কোড (কপি করে পেস্ট করুন)</label>'+
     '<textarea readonly class="field-input" style="height:170px;resize:vertical;white-space:pre;overflow:auto;" onclick="this.select()">'+
       'function doGet(e) {\n'+
+      '  var action = e.parameter.action;\n'+
+      '  if(action === "getUser") return getUserByPin(e.parameter.pin);\n'+
       '  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Questions");\n'+
       '  var data = sheet.getDataRange().getValues();\n'+
       '  var headers = data[0];\n'+
@@ -642,6 +700,60 @@ function renderSettings(){
       '    };\n'+
       '  });\n'+
       '  return ContentService.createTextOutput(JSON.stringify({questions: questions}))\n'+
+      '    .setMimeType(ContentService.MimeType.JSON);\n'+
+      '}\n'+
+      '\n'+
+      'function doPost(e) {\n'+
+      '  var body = JSON.parse(e.postData.contents);\n'+
+      '  if(body.action === "saveUser") return saveUser(body);\n'+
+      '  return ContentService.createTextOutput(JSON.stringify({ok:false}))\n'+
+      '    .setMimeType(ContentService.MimeType.JSON);\n'+
+      '}\n'+
+      '\n'+
+      'function getUsersSheet(){\n'+
+      '  var ss = SpreadsheetApp.getActiveSpreadsheet();\n'+
+      '  var sh = ss.getSheetByName("Users");\n'+
+      '  if(!sh){\n'+
+      '    sh = ss.insertSheet("Users");\n'+
+      '    sh.appendRow(["pin","name","rank","unit","sessions","answered","correct","bestMock","wrongIds","bookmarks","attempts","updated"]);\n'+
+      '  }\n'+
+      '  return sh;\n'+
+      '}\n'+
+      '\n'+
+      'function safeParse(s){ try{ return JSON.parse(s); }catch(err){ return []; } }\n'+
+      '\n'+
+      'function getUserByPin(pin){\n'+
+      '  var sh = getUsersSheet();\n'+
+      '  var data = sh.getDataRange().getValues();\n'+
+      '  for(var i=1;i<data.length;i++){\n'+
+      '    if(String(data[i][0]) === String(pin)){\n'+
+      '      return ContentService.createTextOutput(JSON.stringify({\n'+
+      '        found:true, pin:data[i][0], name:data[i][1], rank:data[i][2], unit:data[i][3],\n'+
+      '        sessions:data[i][4], answered:data[i][5], correct:data[i][6], bestMock:data[i][7],\n'+
+      '        wrongIds:safeParse(data[i][8]), bookmarks:safeParse(data[i][9]), attempts:safeParse(data[i][10])\n'+
+      '      })).setMimeType(ContentService.MimeType.JSON);\n'+
+      '    }\n'+
+      '  }\n'+
+      '  return ContentService.createTextOutput(JSON.stringify({found:false}))\n'+
+      '    .setMimeType(ContentService.MimeType.JSON);\n'+
+      '}\n'+
+      '\n'+
+      'function saveUser(body){\n'+
+      '  var sh = getUsersSheet();\n'+
+      '  var data = sh.getDataRange().getValues();\n'+
+      '  var rowIdx = -1;\n'+
+      '  for(var i=1;i<data.length;i++){\n'+
+      '    if(String(data[i][0]) === String(body.pin)){ rowIdx = i+1; break; }\n'+
+      '  }\n'+
+      '  var row = [\n'+
+      '    body.pin, body.name||"", body.rank||"", body.unit||"",\n'+
+      '    body.sessions||0, body.answered||0, body.correct||0, body.bestMock||0,\n'+
+      '    JSON.stringify(body.wrongIds||[]), JSON.stringify(body.bookmarks||[]), JSON.stringify(body.attempts||[]),\n'+
+      '    new Date().toISOString()\n'+
+      '  ];\n'+
+      '  if(rowIdx === -1) sh.appendRow(row);\n'+
+      '  else sh.getRange(rowIdx,1,1,row.length).setValues([row]);\n'+
+      '  return ContentService.createTextOutput(JSON.stringify({ok:true}))\n'+
       '    .setMimeType(ContentService.MimeType.JSON);\n'+
       '}'+
     '</textarea>'+
@@ -702,6 +814,7 @@ function renderSettings(){
 function renderProfile(){
   setHeader("প্রোফাইল", "আপনার তথ্য ও অগ্রগতি", false);
   var p = store.profile;
+  if(!p.pin){ renderAccountGate(); return; }
   var initials = (p.name||"").trim().split(/\s+/).filter(Boolean).map(function(w){return w[0];}).slice(0,2).join("").toUpperCase() || "?";
   var html = "";
 
@@ -737,6 +850,7 @@ function renderProfile(){
       saveStore(store);
       state.tempPhoto = null;
       state.profileEditing = false;
+      if(store.profile.pin) cloudSaveUser();
       renderProfile();
     });
     document.getElementById("cancelProfileBtn").addEventListener("click", function(){
@@ -755,6 +869,8 @@ function renderProfile(){
     html += '<div class="prole">'+[p.rank,p.unit].filter(Boolean).map(escapeAttr).join(' · ')+'</div>';
   }
   html += '<button class="btn" id="editProfileBtn" style="margin-top:14px;">প্রোফাইল সম্পাদনা করুন</button>';
+  html += '<div style="margin-top:14px;font-size:11.5px;color:var(--ink-soft);">আপনার PIN: <b style="color:var(--ink);font-family:\'JetBrains Mono\',monospace;">'+p.pin+'</b> — অন্য ডিভাইসে এই PIN দিয়ে প্রোফাইল ফিরে পাবেন</div>';
+  html += '<button class="btn" id="logoutBtn" style="margin-top:10px;background:none;color:var(--bad);font-size:12px;padding:6px 10px;">লগ আউট (এই ডিভাইস থেকে)</button>';
   html += '</div>';
 
   html += '<div class="stat-strip" style="margin-top:20px;">'+
@@ -784,6 +900,91 @@ function renderProfile(){
     state.profileEditing = true;
     renderProfile();
   });
+  document.getElementById("logoutBtn").addEventListener("click", function(){
+    if(!confirm("এই ডিভাইস থেকে লগ আউট করবেন? আপনার PIN দিয়ে আবার লগইন করে ফিরে আসতে পারবেন।")) return;
+    store.profile.pin = "";
+    saveStore(store);
+    state.accountMode = null;
+    renderProfile();
+  });
+}
+
+/* ===================== ACCOUNT (PIN login / register) ===================== */
+function showAccountMsg(msg, isError){
+  var el = document.getElementById("accountMsg");
+  if(el){ el.textContent = msg; el.style.color = isError ? "var(--bad)" : "var(--good)"; }
+}
+function renderAccountGate(){
+  var mode = state.accountMode;
+  var html = "";
+  if(!mode){
+    html += '<div class="profile-card">'+
+      '<div class="pname" style="margin-top:0;">স্বাগতম!</div>'+
+      '<div class="prole">অগ্রগতি সংরক্ষণ করতে ও যেকোনো ডিভাইস থেকে ফিরে পেতে একটা প্রোফাইল তৈরি করুন</div>'+
+      '<button class="btn block" id="gotoRegisterBtn" style="margin-top:18px;">নতুন প্রোফাইল শুরু করুন</button>'+
+      '<button class="btn block" id="gotoLoginBtn" style="margin-top:10px;background:#fff;border:1px solid var(--line);color:var(--ink);">আগের PIN দিয়ে ফিরে আসুন</button>'+
+    '</div>';
+    main.innerHTML = html;
+    document.getElementById("gotoRegisterBtn").addEventListener("click", function(){ state.accountMode="register"; renderProfile(); });
+    document.getElementById("gotoLoginBtn").addEventListener("click", function(){ state.accountMode="login"; renderProfile(); });
+    return;
+  }
+
+  if(mode === "register"){
+    var suggestedPin = generatePin();
+    html += '<label class="field-label">নাম</label>';
+    html += '<input type="text" id="regName" class="field-input" placeholder="আপনার নাম">';
+    html += '<label class="field-label" style="margin-top:14px;">আপনার ৪-সংখ্যার PIN (এটা মনে রাখুন)</label>';
+    html += '<input type="text" id="regPin" class="field-input" inputmode="numeric" maxlength="6" value="'+suggestedPin+'">';
+    html += '<div id="accountMsg" class="sync-status"></div>';
+    html += '<button class="btn block" id="regSubmitBtn" style="margin-top:14px;">শুরু করুন</button>';
+    html += '<button class="btn block" id="accountBackBtn" style="margin-top:10px;background:#fff;border:1px solid var(--line);color:var(--ink);">ফিরে যান</button>';
+    main.innerHTML = html;
+    document.getElementById("regSubmitBtn").addEventListener("click", function(){
+      var name = document.getElementById("regName").value.trim();
+      var pin = document.getElementById("regPin").value.trim();
+      if(!name){ showAccountMsg("নাম লিখুন।", true); return; }
+      if(!/^[0-9]{4,6}$/.test(pin)){ showAccountMsg("৪-৬ সংখ্যার PIN দিন।", true); return; }
+      showAccountMsg("তৈরি করা হচ্ছে...", false);
+      cloudFetchUser(pin).then(function(res){
+        if(res.found){ showAccountMsg("এই PIN আগে থেকেই ব্যবহৃত হয়েছে, অন্য একটা দিন।", true); return; }
+        store.profile.name = name;
+        store.profile.pin = pin;
+        saveStore(store);
+        cloudSaveUser().then(function(){ state.accountMode=null; renderProfile(); });
+      }).catch(function(){
+        store.profile.name = name;
+        store.profile.pin = pin;
+        saveStore(store);
+        state.accountMode = null;
+        renderProfile();
+      });
+    });
+    document.getElementById("accountBackBtn").addEventListener("click", function(){ state.accountMode=null; renderProfile(); });
+    return;
+  }
+
+  if(mode === "login"){
+    html += '<label class="field-label">আপনার PIN দিন</label>';
+    html += '<input type="text" id="loginPin" class="field-input" inputmode="numeric" maxlength="6" placeholder="যেমনঃ 4821">';
+    html += '<div id="accountMsg" class="sync-status"></div>';
+    html += '<button class="btn block" id="loginSubmitBtn" style="margin-top:14px;">ফিরে আসুন</button>';
+    html += '<button class="btn block" id="accountBackBtn" style="margin-top:10px;background:#fff;border:1px solid var(--line);color:var(--ink);">ফিরে যান</button>';
+    main.innerHTML = html;
+    document.getElementById("loginSubmitBtn").addEventListener("click", function(){
+      var pin = document.getElementById("loginPin").value.trim();
+      if(!/^[0-9]{4,6}$/.test(pin)){ showAccountMsg("সঠিক PIN দিন।", true); return; }
+      showAccountMsg("খোঁজা হচ্ছে...", false);
+      cloudFetchUser(pin).then(function(res){
+        if(!res.found){ showAccountMsg("এই PIN দিয়ে কোনো প্রোফাইল পাওয়া যায়নি।", true); return; }
+        applyCloudUser(res);
+        state.accountMode = null;
+        renderProfile();
+      }).catch(function(){ showAccountMsg("সংযোগ ব্যর্থ। ইন্টারনেট সংযোগ যাচাই করুন।", true); });
+    });
+    document.getElementById("accountBackBtn").addEventListener("click", function(){ state.accountMode=null; renderProfile(); });
+    return;
+  }
 }
 
 
