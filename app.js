@@ -85,7 +85,7 @@ var LS_KEY = "asi_promo_prep_v1";
    syncs questions automatically — end users never need to open Settings or
    paste any link themselves. If you redeploy the Apps Script and get a new
    /exec URL, update it here. */
-var DEFAULT_REMOTE_URL = "https://script.google.com/macros/s/AKfycbwV1m7VevRo21Ffy1-_GFJIqrV1oAfO2QplNF3nJfsVk1v8wAMHI5eismnS-dETj2lQ-g/exec";
+var DEFAULT_REMOTE_URL = "https://script.google.com/macros/s/AKfycbyzuMnVKDVGOupc6ixtoyFB-5FtuQFWavU5DOLQtQG6CKHGRk3RRBcX1yN1CRhFeE3wBg/exec";
 
 function loadStore(){
   try{
