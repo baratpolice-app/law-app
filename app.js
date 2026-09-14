@@ -214,6 +214,14 @@ function applyCloudUser(u){
   });
   saveStore(store);
 }
+function cloudFetchLeaderboard(){
+  if(!store.remoteUrl) return Promise.reject(new Error("no remote url"));
+  var url = store.remoteUrl + (store.remoteUrl.indexOf("?")>-1?"&":"?") + "action=getLeaderboard";
+  return fetch(url).then(function(res){
+    if(!res.ok) throw new Error("HTTP "+res.status);
+    return res.json();
+  });
+}
 
 var main = document.getElementById("mainArea");
 var headerTitle = document.getElementById("headerTitle");
@@ -686,6 +694,7 @@ function renderSettings(){
       'function doGet(e) {\n'+
       '  var action = e.parameter.action;\n'+
       '  if(action === "getUser") return getUserByPin(e.parameter.pin);\n'+
+      '  if(action === "getLeaderboard") return getLeaderboard();\n'+
       '  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Questions");\n'+
       '  var data = sheet.getDataRange().getValues();\n'+
       '  var headers = data[0];\n'+
@@ -754,6 +763,24 @@ function renderSettings(){
       '  if(rowIdx === -1) sh.appendRow(row);\n'+
       '  else sh.getRange(rowIdx,1,1,row.length).setValues([row]);\n'+
       '  return ContentService.createTextOutput(JSON.stringify({ok:true}))\n'+
+      '    .setMimeType(ContentService.MimeType.JSON);\n'+
+      '}\n'+
+      '\n'+
+      '/* Note: PIN is intentionally left out of this response — it doubles as\n'+
+      '   each person login credential, so it must never be shown to others. */\n'+
+      'function getLeaderboard(){\n'+
+      '  var sh = getUsersSheet();\n'+
+      '  var data = sh.getDataRange().getValues();\n'+
+      '  var list = [];\n'+
+      '  for(var i=1;i<data.length;i++){\n'+
+      '    if(!data[i][1]) continue;\n'+
+      '    list.push({\n'+
+      '      name:data[i][1], rank:data[i][2], unit:data[i][3],\n'+
+      '      sessions:Number(data[i][4])||0, answered:Number(data[i][5])||0,\n'+
+      '      correct:Number(data[i][6])||0, bestMock:Number(data[i][7])||0\n'+
+      '    });\n'+
+      '  }\n'+
+      '  return ContentService.createTextOutput(JSON.stringify({users:list}))\n'+
       '    .setMimeType(ContentService.MimeType.JSON);\n'+
       '}'+
     '</textarea>'+
@@ -869,6 +896,7 @@ function renderProfile(){
     html += '<div class="prole">'+[p.rank,p.unit].filter(Boolean).map(escapeAttr).join(' · ')+'</div>';
   }
   html += '<button class="btn" id="editProfileBtn" style="margin-top:14px;">প্রোফাইল সম্পাদনা করুন</button>';
+  html += '<a class="btn" href="leaderboard.html" style="margin-top:10px;display:inline-block;background:#fff;border:1px solid var(--line);color:var(--ink);text-decoration:none;">সবার র‍্যাংকিং দেখুন</a>';
   html += '<div style="margin-top:14px;font-size:11.5px;color:var(--ink-soft);">আপনার PIN: <b style="color:var(--ink);font-family:\'JetBrains Mono\',monospace;">'+p.pin+'</b> — অন্য ডিভাইসে এই PIN দিয়ে প্রোফাইল ফিরে পাবেন</div>';
   html += '<button class="btn" id="logoutBtn" style="margin-top:10px;background:none;color:var(--bad);font-size:12px;padding:6px 10px;">লগ আউট (এই ডিভাইস থেকে)</button>';
   html += '</div>';
@@ -987,6 +1015,42 @@ function renderAccountGate(){
   }
 }
 
+
+/* ===================== RENDER: LEADERBOARD ===================== */
+function renderLeaderboard(){
+  setHeader("র‍্যাংকিং", "সবার অগ্রগতি তুলনা করুন", true);
+  main.innerHTML = '<div class="empty-state"><p>লোড হচ্ছে...</p></div>';
+  cloudFetchLeaderboard().then(function(res){
+    var users = (res.users||[]).map(function(u){
+      var acc = u.answered ? Math.round(100*u.correct/u.answered) : 0;
+      return {name:u.name||"নামহীন", rank:u.rank, unit:u.unit, sessions:u.sessions, acc:acc, bestMock:u.bestMock};
+    }).filter(function(u){ return u.sessions>0; });
+    users.sort(function(a,b){ return b.acc-a.acc || b.sessions-a.sessions; });
+
+    if(!users.length){
+      main.innerHTML = '<div class="empty-state"><p>এখনো কেউ অনুশীলন শুরু করেনি।</p></div>';
+      return;
+    }
+    var myName = store.profile.name;
+    var html = '<div class="leaderboard-list">';
+    users.forEach(function(u, i){
+      var isMe = myName && u.name === myName;
+      html += '<div class="lb-row'+(isMe?' me':'')+'">'+
+        '<div class="lb-rank">'+(i+1)+'</div>'+
+        '<div class="lb-body">'+
+          '<div class="lb-name">'+escapeAttr(u.name)+(isMe?' (আপনি)':'')+'</div>'+
+          '<div class="lb-meta">'+[u.rank,u.unit].filter(Boolean).map(escapeAttr).join(' · ')+(u.rank||u.unit?' · ':'')+u.sessions+' সেশন</div>'+
+        '</div>'+
+        '<div class="lb-score">'+u.acc+'%</div>'+
+      '</div>';
+    });
+    html += '</div>';
+    html += '<p style="font-size:11.5px;color:var(--ink-soft);margin-top:16px;line-height:1.6;">সঠিকতার হার অনুযায়ী ক্রম করা হয়েছে (কমপক্ষে একটা সেশন সম্পন্ন করেছেন এমন সবাই দেখানো হচ্ছে)।</p>';
+    main.innerHTML = html;
+  }).catch(function(){
+    main.innerHTML = '<div class="empty-state"><p>র‍্যাংকিং লোড করা যায়নি। ইন্টারনেট সংযোগ যাচাই করুন।</p></div>';
+  });
+}
 
 /* ===================== SHARED BOOTSTRAP (called by every page) ===================== */
 if(store.remoteCache && store.remoteCache.length){
