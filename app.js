@@ -85,7 +85,7 @@ var LS_KEY = "asi_promo_prep_v1";
    syncs questions automatically — end users never need to open Settings or
    paste any link themselves. If you redeploy the Apps Script and get a new
    /exec URL, update it here. */
-var DEFAULT_REMOTE_URL = "https://script.google.com/macros/s/AKfycbyzuMnVKDVGOupc6ixtoyFB-5FtuQFWavU5DOLQtQG6CKHGRk3RRBcX1yN1CRhFeE3wBg/exec";
+var DEFAULT_REMOTE_URL = "https://script.google.com/macros/s/AKfycbyZuDD7kHpyOze9r7Ey3WB89zh1eAeQ_iML9TxGy43vt1Usfsc_5jUCX0wU5GNY67rz/exec";
 
 function loadStore(){
   try{
@@ -98,7 +98,7 @@ function loadStore(){
   if(typeof s.darkMode !== "boolean") s.darkMode = false;
   if(!s.profile) s.profile = {name:"", rank:"", unit:"", photo:"", pin:""};
   if(s.profile && typeof s.profile.pin === "undefined") s.profile.pin = "";
-  if(!s.remoteUrl && DEFAULT_REMOTE_URL) s.remoteUrl = DEFAULT_REMOTE_URL;
+  if(!s.remoteUrl || s.remoteUrl !== DEFAULT_REMOTE_URL) s.remoteUrl = DEFAULT_REMOTE_URL;
   return s;
 }
 function saveStore(store){
