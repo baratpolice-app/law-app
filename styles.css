@@ -140,7 +140,7 @@
 
   /* ---------- Leaderboard ---------- */
   .leaderboard-list{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;background:var(--surface);}
-  .lb-row{display:flex;align-items:center;gap:12px;padding:12px 14px;}
+  .lb-row{display:flex;align-items:center;gap:12px;padding:12px 14px;cursor:pointer;}
   .lb-row + .lb-row{border-top:1px solid var(--line);}
   .lb-row.me{background:var(--paper-dim);}
   .lb-rank{
