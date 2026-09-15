@@ -214,6 +214,44 @@ function applyCloudUser(u){
   });
   saveStore(store);
 }
+/* Pulls just name/rank/unit down from the Sheet (in case an admin corrected
+   them there) without touching local activity data — local practice
+   history/wrongIds/bookmarks always stay device-authoritative and only
+   flow UP to the cloud, never down, except during an explicit PIN login. */
+var IDENTITY_SYNC_INTERVAL_MS = 3*60*1000;
+function refreshProfileIdentity(onChanged){
+  if(!store.profile.pin) return;
+  var last = store.profileIdentitySynced || 0;
+  if(Date.now() - last < IDENTITY_SYNC_INTERVAL_MS) return;
+  cloudFetchUser(store.profile.pin).then(function(u){
+    store.profileIdentitySynced = Date.now();
+    if(!u.found) { saveStore(store); return; }
+    var changed = u.name!==store.profile.name || u.rank!==store.profile.rank || u.unit!==store.profile.unit;
+    store.profile.name = u.name || store.profile.name;
+    store.profile.rank = u.rank || "";
+    store.profile.unit = u.unit || "";
+    saveStore(store);
+    if(changed && onChanged) onChanged();
+  }).catch(function(){});
+}
+/* Quietly pull the latest name/rank/unit for the logged-in profile from the
+   Users sheet — so if an admin edits someone's info directly in the Sheet,
+   it shows up here without needing to log out and back in. Only touches
+   identity fields, never overwrites local activity (wrongIds/bookmarks/
+   attempts) so nothing done on this device is ever lost by this refresh. */
+function syncProfileFromCloud(){
+  if(!store.profile.pin || state.profileEditing) return;
+  cloudFetchUser(store.profile.pin).then(function(res){
+    if(!res.found || state.profileEditing) return;
+    var changed = res.name!==store.profile.name || res.rank!==store.profile.rank || res.unit!==store.profile.unit;
+    if(!changed) return;
+    store.profile.name = res.name || store.profile.name;
+    store.profile.rank = res.rank || store.profile.rank;
+    store.profile.unit = res.unit || store.profile.unit;
+    saveStore(store);
+    renderProfile();
+  }).catch(function(){});
+}
 function cloudFetchLeaderboard(){
   if(!store.remoteUrl) return Promise.reject(new Error("no remote url"));
   var url = store.remoteUrl + (store.remoteUrl.indexOf("?")>-1?"&":"?") + "action=getLeaderboard";
@@ -781,10 +819,19 @@ function renderSettings(){
       '  var list = [];\n'+
       '  for(var i=1;i<data.length;i++){\n'+
       '    if(!data[i][1]) continue;\n'+
+      '    var attempts = safeParse(data[i][10]) || [];\n'+
+      '    var subjects = {};\n'+
+      '    attempts.forEach(function(a){\n'+
+      '      var key = a.subjectName || "অন্যান্য";\n'+
+      '      if(!subjects[key]) subjects[key] = {correct:0, total:0};\n'+
+      '      subjects[key].correct += a.correct||0;\n'+
+      '      subjects[key].total += a.total||0;\n'+
+      '    });\n'+
       '    list.push({\n'+
       '      name:data[i][1], rank:data[i][2], unit:data[i][3],\n'+
       '      sessions:Number(data[i][4])||0, answered:Number(data[i][5])||0,\n'+
-      '      correct:Number(data[i][6])||0, bestMock:Number(data[i][7])||0\n'+
+      '      correct:Number(data[i][6])||0, bestMock:Number(data[i][7])||0,\n'+
+      '      subjects:subjects\n'+
       '    });\n'+
       '  }\n'+
       '  return ContentService.createTextOutput(JSON.stringify({users:list}))\n'+
@@ -849,6 +896,7 @@ function renderProfile(){
   setHeader("প্রোফাইল", "আপনার তথ্য ও অগ্রগতি", false);
   var p = store.profile;
   if(!p.pin){ renderAccountGate(); return; }
+  refreshProfileIdentity(function(){ if(!state.profileEditing) renderProfile(); });
   var initials = (p.name||"").trim().split(/\s+/).filter(Boolean).map(function(w){return w[0];}).slice(0,2).join("").toUpperCase() || "?";
   var html = "";
 
@@ -1030,7 +1078,7 @@ function renderLeaderboard(){
   cloudFetchLeaderboard().then(function(res){
     var users = (res.users||[]).map(function(u){
       var acc = u.answered ? Math.round(100*u.correct/u.answered) : 0;
-      return {name:u.name||"নামহীন", rank:u.rank, unit:u.unit, sessions:u.sessions, acc:acc, bestMock:u.bestMock};
+      return {name:u.name||"নামহীন", rank:u.rank, unit:u.unit, sessions:u.sessions, answered:u.answered, correct:u.correct, acc:acc, bestMock:u.bestMock, subjects:u.subjects||{}};
     }).filter(function(u){ return u.sessions>0; });
     users.sort(function(a,b){ return b.acc-a.acc || b.sessions-a.sessions; });
 
@@ -1042,7 +1090,7 @@ function renderLeaderboard(){
     var html = '<div class="leaderboard-list">';
     users.forEach(function(u, i){
       var isMe = myName && u.name === myName;
-      html += '<div class="lb-row'+(isMe?' me':'')+'">'+
+      html += '<div class="lb-row'+(isMe?' me':'')+'" data-idx="'+i+'">'+
         '<div class="lb-rank">'+(i+1)+'</div>'+
         '<div class="lb-body">'+
           '<div class="lb-name">'+escapeAttr(u.name)+(isMe?' (আপনি)':'')+'</div>'+
@@ -1052,11 +1100,55 @@ function renderLeaderboard(){
       '</div>';
     });
     html += '</div>';
-    html += '<p style="font-size:11.5px;color:var(--ink-soft);margin-top:16px;line-height:1.6;">সঠিকতার হার অনুযায়ী ক্রম করা হয়েছে (কমপক্ষে একটা সেশন সম্পন্ন করেছেন এমন সবাই দেখানো হচ্ছে)।</p>';
+    html += '<p style="font-size:11.5px;color:var(--ink-soft);margin-top:16px;line-height:1.6;">সঠিকতার হার অনুযায়ী ক্রম করা হয়েছে (কমপক্ষে একটা সেশন সম্পন্ন করেছেন এমন সবাই দেখানো হচ্ছে)। কারো নামে চাপুন বিস্তারিত দেখতে।</p>';
     main.innerHTML = html;
+    document.querySelectorAll(".lb-row").forEach(function(el){
+      el.addEventListener("click", function(){
+        var idx = parseInt(el.getAttribute("data-idx"),10);
+        renderLeaderboardDetail(users[idx]);
+      });
+    });
   }).catch(function(){
     main.innerHTML = '<div class="empty-state"><p>র‍্যাংকিং লোড করা যায়নি। ইন্টারনেট সংযোগ যাচাই করুন।</p></div>';
   });
+}
+
+function renderLeaderboardDetail(u){
+  setHeader(u.name, "ব্যবহারকারীর প্রোফাইল", true);
+  var initials = (u.name||"").trim().split(/\s+/).filter(Boolean).map(function(w){return w[0];}).slice(0,2).join("").toUpperCase() || "?";
+  var html = "";
+  html += '<div class="profile-card">';
+  html += '<div class="avatar-wrap"><div class="avatar avatar-fallback">'+initials+'</div></div>';
+  html += '<div class="pname">'+escapeAttr(u.name)+'</div>';
+  if(u.rank || u.unit){
+    html += '<div class="prole">'+[u.rank,u.unit].filter(Boolean).map(escapeAttr).join(' · ')+'</div>';
+  }
+  html += '</div>';
+  html += '<div class="stat-strip" style="margin-top:20px;">'+
+    '<div class="stat-cell"><div class="num">'+u.sessions+'</div><div class="lbl">সেশন</div></div>'+
+    '<div class="stat-cell"><div class="num">'+u.acc+'%</div><div class="lbl">সঠিকতার হার</div></div>'+
+    '<div class="stat-cell"><div class="num">'+(u.bestMock||0)+'%</div><div class="lbl">সেরা মক</div></div>'+
+  '</div>';
+
+  var subjKeys = Object.keys(u.subjects||{});
+  html += '<h2 class="section-title">বিষয়ভিত্তিক অগ্রগতি</h2>';
+  if(!subjKeys.length){
+    html += '<div class="empty-state"><p>কোনো বিষয়ভিত্তিক তথ্য নেই।</p></div>';
+  } else {
+    html += '<div class="progress-list">';
+    subjKeys.forEach(function(k){
+      var s = u.subjects[k];
+      var pct = s.total ? Math.round(100*s.correct/s.total) : 0;
+      html += '<div class="progress-row">'+
+        '<div class="progress-row-top"><span>'+escapeAttr(k)+'</span><span>'+pct+'%</span></div>'+
+        '<div class="progress-track"><div class="progress-fill" style="width:'+pct+'%"></div></div>'+
+      '</div>';
+    });
+    html += '</div>';
+  }
+  html += '<button class="btn block" id="backToLbBtn" style="margin-top:22px;background:#fff;border:1px solid var(--line);color:var(--ink);">র‍্যাংকিং তালিকায় ফিরুন</button>';
+  main.innerHTML = html;
+  document.getElementById("backToLbBtn").addEventListener("click", function(){ renderLeaderboard(); });
 }
 
 /* ===================== SHARED BOOTSTRAP (called by every page) ===================== */
