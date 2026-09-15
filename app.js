@@ -219,10 +219,10 @@ function applyCloudUser(u){
    history/wrongIds/bookmarks always stay device-authoritative and only
    flow UP to the cloud, never down, except during an explicit PIN login. */
 var IDENTITY_SYNC_INTERVAL_MS = 3*60*1000;
-function refreshProfileIdentity(onChanged){
+function refreshProfileIdentity(onChanged, force){
   if(!store.profile.pin) return;
   var last = store.profileIdentitySynced || 0;
-  if(Date.now() - last < IDENTITY_SYNC_INTERVAL_MS) return;
+  if(!force && Date.now() - last < IDENTITY_SYNC_INTERVAL_MS) return;
   cloudFetchUser(store.profile.pin).then(function(u){
     store.profileIdentitySynced = Date.now();
     if(!u.found) { saveStore(store); return; }
@@ -945,15 +945,19 @@ function renderProfile(){
 
   var stats = overallStats();
   html += '<div class="profile-card">';
+  html += '<div class="profile-card-top">';
   html += '<div class="avatar-wrap">'+(p.photo ? '<img class="avatar" src="'+p.photo+'">' : '<div class="avatar avatar-fallback">'+initials+'</div>')+'</div>';
   html += '<div class="pname">'+(p.name ? escapeAttr(p.name) : "নাম যোগ করুন")+'</div>';
   if(p.rank || p.unit){
     html += '<div class="prole">'+[p.rank,p.unit].filter(Boolean).map(escapeAttr).join(' · ')+'</div>';
   }
-  html += '<button class="btn" id="editProfileBtn" style="margin-top:14px;">প্রোফাইল সম্পাদনা করুন</button>';
-  html += '<a class="btn" href="leaderboard.html" style="margin-top:10px;display:inline-block;background:#fff;border:1px solid var(--line);color:var(--ink);text-decoration:none;">সবার র‍্যাংকিং দেখুন</a>';
-  html += '<div style="margin-top:14px;font-size:11.5px;color:var(--ink-soft);">আপনার PIN: <b style="color:var(--ink);font-family:\'JetBrains Mono\',monospace;">'+p.pin+'</b> — অন্য ডিভাইসে এই PIN দিয়ে প্রোফাইল ফিরে পাবেন</div>';
-  html += '<button class="btn" id="logoutBtn" style="margin-top:10px;background:none;color:var(--bad);font-size:12px;padding:6px 10px;">লগ আউট (এই ডিভাইস থেকে)</button>';
+  html += '<div class="pin-chip"><span>PIN</span><b>'+p.pin+'</b><button id="refreshIdBtn" title="Sheet থেকে সর্বশেষ তথ্য আনুন">⟳</button></div>';
+  html += '</div>';
+  html += '<div class="profile-card-actions">';
+  html += '<button class="btn" id="editProfileBtn">প্রোফাইল সম্পাদনা করুন</button>';
+  html += '<a class="btn secondary-btn" href="leaderboard.html">সবার র‍্যাংকিং দেখুন</a>';
+  html += '<button class="btn text-btn" id="logoutBtn">লগ আউট (এই ডিভাইস থেকে)</button>';
+  html += '</div>';
   html += '</div>';
 
   html += '<div class="stat-strip" style="margin-top:20px;">'+
@@ -982,6 +986,12 @@ function renderProfile(){
   document.getElementById("editProfileBtn").addEventListener("click", function(){
     state.profileEditing = true;
     renderProfile();
+  });
+  document.getElementById("refreshIdBtn").addEventListener("click", function(){
+    var btn = document.getElementById("refreshIdBtn");
+    btn.classList.add("spinning");
+    refreshProfileIdentity(function(){ renderProfile(); }, true);
+    setTimeout(function(){ if(!state.profileEditing) renderProfile(); }, 900);
   });
   document.getElementById("logoutBtn").addEventListener("click", function(){
     if(!confirm("এই ডিভাইস থেকে লগ আউট করবেন? আপনার PIN দিয়ে আবার লগইন করে ফিরে আসতে পারবেন।")) return;
@@ -1091,7 +1101,7 @@ function renderLeaderboard(){
     users.forEach(function(u, i){
       var isMe = myName && u.name === myName;
       html += '<div class="lb-row'+(isMe?' me':'')+'" data-idx="'+i+'">'+
-        '<div class="lb-rank">'+(i+1)+'</div>'+
+        '<div class="lb-rank">'+(i<3?["🥇","🥈","🥉"][i]:(i+1))+'</div>'+
         '<div class="lb-body">'+
           '<div class="lb-name">'+escapeAttr(u.name)+(isMe?' (আপনি)':'')+'</div>'+
           '<div class="lb-meta">'+[u.rank,u.unit].filter(Boolean).map(escapeAttr).join(' · ')+(u.rank||u.unit?' · ':'')+u.sessions+' সেশন</div>'+
